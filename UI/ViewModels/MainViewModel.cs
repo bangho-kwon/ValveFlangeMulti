@@ -21,6 +21,8 @@ namespace ValveFlangeMulti.UI.ViewModels
 {
     public sealed class MainViewModel : INotifyPropertyChanged
     {
+        private const int MaxStackTraceLength = 1000; // 로그에 표시할 최대 스택 트레이스 길이
+        
         private readonly ExternalCommandData _commandData;
         private readonly PmsExcelLoader _loader = new PmsExcelLoader();
         private readonly MatchService _matcher = new MatchService();
@@ -32,7 +34,7 @@ namespace ValveFlangeMulti.UI.ViewModels
         public event PropertyChangedEventHandler PropertyChanged;
 
         public ObservableCollection<ValveButtonItemViewModel> ValveItems { get; } = new ObservableCollection<ValveButtonItemViewModel>();
-        public ICollectionView FilteredValveItems { get; }
+        public ICollectionView FilteredValveItems { get; private set; }
 
         private string _valveSearchText = "";
         public string ValveSearchText
@@ -119,21 +121,47 @@ namespace ValveFlangeMulti.UI.ViewModels
 
         public MainViewModel(ExternalCommandData commandData)
         {
+            // Validate input
+            if (commandData == null)
+                throw new ArgumentNullException(nameof(commandData), "ExternalCommandData cannot be null");
+
             _commandData = commandData;
 
-            // Load persisted settings (last Excel path) - best effort
-            _userSettings = SettingsService.LoadGlobal();
-            if (!string.IsNullOrWhiteSpace(_userSettings?.LastExcelPath))
-                ExcelPathFull = _userSettings.LastExcelPath;
-
-            FilteredValveItems = CollectionViewSource.GetDefaultView(ValveItems);
-            FilteredValveItems.Filter = o =>
+            // Load persisted settings (last Excel path) - best effort with defensive coding
+            try
             {
-                if (o is not ValveButtonItemViewModel v) return false;
-                if (string.IsNullOrWhiteSpace(ValveSearchText)) return true;
-                return v.ItemName.IndexOf(ValveSearchText, StringComparison.OrdinalIgnoreCase) >= 0;
-            };
+                _userSettings = SettingsService.LoadGlobal();
+                if (_userSettings != null && !string.IsNullOrWhiteSpace(_userSettings.LastExcelPath))
+                    ExcelPathFull = _userSettings.LastExcelPath;
+            }
+            catch (Exception ex)
+            {
+                // Settings load failure shouldn't crash the app
+                _userSettings = new UserSettings();
+                LogLines.Add($"[WARN] Failed to load settings: {ex.Message}");
+            }
 
+            // Initialize filtered collection view with defensive null checks
+            try
+            {
+                FilteredValveItems = CollectionViewSource.GetDefaultView(ValveItems);
+                if (FilteredValveItems != null)
+                {
+                    FilteredValveItems.Filter = o =>
+                    {
+                        if (o is not ValveButtonItemViewModel v) return false;
+                        if (string.IsNullOrWhiteSpace(ValveSearchText)) return true;
+                        return v.ItemName.IndexOf(ValveSearchText, StringComparison.OrdinalIgnoreCase) >= 0;
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                // Filter initialization failure - log but continue
+                LogLines.Add($"[ERROR] Failed to initialize filter: {ex.Message}");
+            }
+
+            // Initialize commands with null checks
             ImportRefreshCommand = new RelayCommand(_ => ImportRefresh(), _ => !IsRunning);
             SelectValveCommand = new RelayCommand(p => SelectedValveItem = p as ValveButtonItemViewModel, _ => SettingState == SettingState.Loaded && !IsRunning);
             RunSelectPipeCommand = new RelayCommand(_ => RunSelectPipe(), _ => CanRun);
@@ -266,10 +294,24 @@ namespace ValveFlangeMulti.UI.ViewModels
 
             try
             {
+                // Defensive null checks for Revit API objects
+                if (_commandData?.Application?.ActiveUIDocument == null)
+                    throw new InvalidOperationException("Active UI Document is not available");
+
                 var uidoc = _commandData.Application.ActiveUIDocument;
+
+                if (uidoc.Document == null)
+                    throw new InvalidOperationException("Document is not available");
+
+                if (uidoc.Selection == null)
+                    throw new InvalidOperationException("Selection is not available");
 
                 // Pick point on pipe (user just clicks the pipe)
                 var pipeRef = uidoc.Selection.PickObject(ObjectType.PointOnElement, new PipeSelectionFilter(), "파이프를 선택하세요.");
+                
+                if (pipeRef == null)
+                    throw new InvalidOperationException("Pipe selection returned null");
+
                 var pickPoint = pipeRef.GlobalPoint;
 
                 StatusMessage = "파이프 정보를 읽는 중… (SK_CLASS / Size)";
@@ -283,7 +325,14 @@ namespace ValveFlangeMulti.UI.ViewModels
                 if (pipeSize <= 0) throw new InvalidOperationException("파이프 Size(Diameter)를 읽을 수 없습니다.");
 
                 StatusMessage = "Excel 매칭 중… (Valve → Flange/Gasket)";
+                
+                if (SelectedValveItem == null)
+                    throw new InvalidOperationException("밸브가 선택되지 않았습니다.");
+
                 var match = _matcher.Match(_rowsCache, SelectedValveItem.ItemName, pipeClass, pipeSize);
+
+                if (match?.Valve == null)
+                    throw new InvalidOperationException("매칭된 밸브 정보가 없습니다.");
 
                 // Build request
                 var req = new PlacementRequest(_commandData, pipeRef, pickPoint)
@@ -297,8 +346,11 @@ namespace ValveFlangeMulti.UI.ViewModels
 
                 if (string.Equals(req.ConnectionType, "FL", StringComparison.OrdinalIgnoreCase))
                 {
-                    req.FlangeFamilyName = match.Flange?.FamilyName;
-                    req.FlangeTypeName = match.Flange?.TypeName;
+                    if (match.Flange != null)
+                    {
+                        req.FlangeFamilyName = match.Flange.FamilyName;
+                        req.FlangeTypeName = match.Flange.TypeName;
+                    }
 
                     if (match.Gasket != null)
                     {
@@ -325,12 +377,20 @@ namespace ValveFlangeMulti.UI.ViewModels
             catch (Autodesk.Revit.Exceptions.OperationCanceledException)
             {
                 StatusMessage = "취소되었습니다.";
+                LogLines.Add("[INFO] (VFM-520) User canceled operation.");
                 UiState = global::ValveFlangeMulti.UI.Enums.UiState.ValveSelected;
             }
             catch (Exception ex)
             {
                 StatusMessage = $"오류: {ex.Message}";
-                LogLines.Add($"[ERROR] (VFM-521) {ex.Message}");
+                LogLines.Add($"[ERROR] (VFM-521) {ex.GetType().Name}: {ex.Message}");
+                
+                // Log stack trace for debugging
+                if (!string.IsNullOrWhiteSpace(ex.StackTrace))
+                {
+                    LogLines.Add($"[DEBUG] Stack trace: {ex.StackTrace.Substring(0, Math.Min(MaxStackTraceLength, ex.StackTrace.Length))}");
+                }
+                
                 UiState = global::ValveFlangeMulti.UI.Enums.UiState.ValveSelected;
             }
             finally

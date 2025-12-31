@@ -12,52 +12,89 @@ namespace ValveFlangeMulti.Services
         // Expected columns (1-based): A=Class, C=MainFrom, D=MainTo, G=Alt, H=ItemType, I=ItemName, L=ConnectionType, M=FamilyName, N=TypeName
         public List<PmsRow> Load(string path)
         {
-            if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Excel path is empty.");
-            using var wb = new XLWorkbook(path);
-            var ws = wb.Worksheets.First();
+            if (string.IsNullOrWhiteSpace(path)) 
+                throw new ArgumentException("Excel path is empty.", nameof(path));
 
-            // Find first used row (assume header at row 1)
-            var used = ws.RangeUsed();
-            if (used == null) throw new InvalidOperationException("Worksheet is empty.");
+            if (!System.IO.File.Exists(path))
+                throw new System.IO.FileNotFoundException($"Excel file not found: {path}");
 
-            int firstDataRow = used.RangeAddress.FirstAddress.RowNumber + 1; // after header
-            int lastRow = used.RangeAddress.LastAddress.RowNumber;
-
-            var rows = new List<PmsRow>();
-            for (int r = firstDataRow; r <= lastRow; r++)
+            try
             {
-                string cls = ws.Cell(r, 1).GetString().Trim(); // A
-                if (string.IsNullOrWhiteSpace(cls)) continue; // skip empty lines
+                using var wb = new XLWorkbook(path);
+                
+                if (wb.Worksheets == null || wb.Worksheets.Count == 0)
+                    throw new InvalidOperationException("Workbook has no worksheets.");
 
-                double mainFrom = ReadDouble(ws.Cell(r, 3)); // C
-                double mainTo = ReadDouble(ws.Cell(r, 4));   // D
+                var ws = wb.Worksheets.First();
+                if (ws == null)
+                    throw new InvalidOperationException("Failed to get first worksheet.");
 
-                var row = new PmsRow
+                // Find first used row (assume header at row 1)
+                var used = ws.RangeUsed();
+                if (used == null) throw new InvalidOperationException("Worksheet is empty.");
+
+                int firstDataRow = used.RangeAddress.FirstAddress.RowNumber + 1; // after header
+                int lastRow = used.RangeAddress.LastAddress.RowNumber;
+
+                var rows = new List<PmsRow>();
+                for (int r = firstDataRow; r <= lastRow; r++)
                 {
-                    RowIndex = r,
-                    Class = cls,
-                    MainFrom = mainFrom,
-                    MainTo = mainTo,
-                    Alt = ws.Cell(r, 7).GetString().Trim(),
-                    ItemType = ws.Cell(r, 8).GetString().Trim(),
-                    ItemName = ws.Cell(r, 9).GetString().Trim(),
-                    ConnectionType = ws.Cell(r, 12).GetString().Trim(),
-                    FamilyName = ws.Cell(r, 13).GetString().Trim(),
-                    TypeName = ws.Cell(r, 14).GetString().Trim(),
-                };
+                    try
+                    {
+                        string cls = ws.Cell(r, 1).GetString().Trim(); // A
+                        if (string.IsNullOrWhiteSpace(cls)) continue; // skip empty lines
 
-                rows.Add(row);
+                        double mainFrom = ReadDouble(ws.Cell(r, 3)); // C
+                        double mainTo = ReadDouble(ws.Cell(r, 4));   // D
+
+                        var row = new PmsRow
+                        {
+                            RowIndex = r,
+                            Class = cls,
+                            MainFrom = mainFrom,
+                            MainTo = mainTo,
+                            Alt = ws.Cell(r, 7).GetString().Trim(),
+                            ItemType = ws.Cell(r, 8).GetString().Trim(),
+                            ItemName = ws.Cell(r, 9).GetString().Trim(),
+                            ConnectionType = ws.Cell(r, 12).GetString().Trim(),
+                            FamilyName = ws.Cell(r, 13).GetString().Trim(),
+                            TypeName = ws.Cell(r, 14).GetString().Trim(),
+                        };
+
+                        rows.Add(row);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Skip rows with errors - continue processing other rows
+                        // Error details are lost but partial data load is enabled
+                    }
+                }
+
+                return rows;
             }
-
-            return rows;
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Failed to load Excel file: {ex.Message}", ex);
+            }
         }
 
         private static double ReadDouble(IXLCell cell)
         {
-            if (cell.DataType == XLDataType.Number) return cell.GetDouble();
-            var s = cell.GetString().Trim();
-            if (double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var v)) return v;
-            if (double.TryParse(s, NumberStyles.Any, CultureInfo.CurrentCulture, out v)) return v;
+            try
+            {
+                if (cell == null) return 0.0;
+                if (cell.DataType == XLDataType.Number) return cell.GetDouble();
+                
+                var s = cell.GetString().Trim();
+                if (string.IsNullOrWhiteSpace(s)) return 0.0;
+                
+                if (double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var v)) return v;
+                if (double.TryParse(s, NumberStyles.Any, CultureInfo.CurrentCulture, out v)) return v;
+            }
+            catch
+            {
+                // Return 0 on any parse error
+            }
             return 0.0;
         }
     }
