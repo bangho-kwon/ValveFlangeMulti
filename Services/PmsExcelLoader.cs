@@ -18,10 +18,9 @@ namespace ValveFlangeMulti.Services
             if (!System.IO.File.Exists(path))
                 throw new System.IO.FileNotFoundException($"Excel file not found: {path}");
 
-            XLWorkbook wb = null;
             try
             {
-                wb = new XLWorkbook(path);
+                using var wb = new XLWorkbook(path);
                 
                 if (wb.Worksheets == null || wb.Worksheets.Count == 0)
                     throw new InvalidOperationException("Workbook has no worksheets.");
@@ -76,11 +75,6 @@ namespace ValveFlangeMulti.Services
             catch (Exception ex)
             {
                 throw new InvalidOperationException($"Failed to load Excel file: {ex.Message}", ex);
-            }
-            finally
-            {
-                // Ensure workbook is disposed
-                wb?.Dispose();
             }
         }
 

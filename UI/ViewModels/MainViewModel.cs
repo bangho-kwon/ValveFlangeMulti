@@ -21,6 +21,8 @@ namespace ValveFlangeMulti.UI.ViewModels
 {
     public sealed class MainViewModel : INotifyPropertyChanged
     {
+        private const int MaxStackTraceLength = 200; // 로그에 표시할 최대 스택 트레이스 길이
+        
         private readonly ExternalCommandData _commandData;
         private readonly PmsExcelLoader _loader = new PmsExcelLoader();
         private readonly MatchService _matcher = new MatchService();
@@ -32,7 +34,7 @@ namespace ValveFlangeMulti.UI.ViewModels
         public event PropertyChangedEventHandler PropertyChanged;
 
         public ObservableCollection<ValveButtonItemViewModel> ValveItems { get; } = new ObservableCollection<ValveButtonItemViewModel>();
-        public ICollectionView FilteredValveItems { get; }
+        public ICollectionView FilteredValveItems { get; private set; }
 
         private string _valveSearchText = "";
         public string ValveSearchText
@@ -386,7 +388,7 @@ namespace ValveFlangeMulti.UI.ViewModels
                 // Log stack trace for debugging
                 if (!string.IsNullOrWhiteSpace(ex.StackTrace))
                 {
-                    LogLines.Add($"[DEBUG] Stack trace: {ex.StackTrace.Substring(0, Math.Min(200, ex.StackTrace.Length))}");
+                    LogLines.Add($"[DEBUG] Stack trace: {ex.StackTrace.Substring(0, Math.Min(MaxStackTraceLength, ex.StackTrace.Length))}");
                 }
                 
                 UiState = global::ValveFlangeMulti.UI.Enums.UiState.ValveSelected;
