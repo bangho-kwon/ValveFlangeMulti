@@ -65,8 +65,8 @@ namespace ValveFlangeMulti.Services
                     }
                     catch (Exception ex)
                     {
-                        // Log row-level errors but continue processing
-                        System.Diagnostics.Debug.WriteLine($"Error reading row {r}: {ex.Message}");
+                        // Skip rows with errors - continue processing other rows
+                        // Error details are lost but partial data load is enabled
                     }
                 }
 

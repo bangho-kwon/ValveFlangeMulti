@@ -21,7 +21,7 @@ namespace ValveFlangeMulti.UI.ViewModels
 {
     public sealed class MainViewModel : INotifyPropertyChanged
     {
-        private const int MaxStackTraceLength = 200; // 로그에 표시할 최대 스택 트레이스 길이
+        private const int MaxStackTraceLength = 1000; // 로그에 표시할 최대 스택 트레이스 길이
         
         private readonly ExternalCommandData _commandData;
         private readonly PmsExcelLoader _loader = new PmsExcelLoader();

@@ -18,12 +18,8 @@ namespace ValveFlangeMulti.UI
                 // Initialize UI components
                 InitializeComponent();
 
-                // Create and set the view model
-                var viewModel = new MainViewModel(commandData);
-                if (viewModel == null)
-                    throw new InvalidOperationException("Failed to create MainViewModel");
-
-                DataContext = viewModel;
+                // Create and set the view model (constructor will throw if fails)
+                DataContext = new MainViewModel(commandData);
             }
             catch (Exception ex)
             {
