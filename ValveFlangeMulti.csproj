@@ -1,0 +1,113 @@
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <!-- =======================
+       Global Properties
+       ======================= -->
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{8A5A9D2C-3C41-4F8F-B8AA-9F0E2C8C1D2B}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>ValveFlangeMulti</RootNamespace>
+    <AssemblyName>ValveFlangeMulti</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <!-- WPF -->
+    <UseWPF>true</UseWPF>
+    <!-- ✅ WPF class library로 인식(디자이너/페이지 컴파일 안정) -->
+    <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <!-- Compiler -->
+    <LangVersion>latest</LangVersion>
+    <FileAlignment>512</FileAlignment>
+    <!-- ✅ 기본 Output 폴더 지정 (DLL 생성 확인 쉬움) -->
+    <BaseOutputPath>bin\</BaseOutputPath>
+    <!-- Revit API Path (필요 시 여기만 수정) -->
+    <RevitApiPath Condition=" '$(RevitApiPath)' == '' ">C:\Program Files\Autodesk\Revit 2023</RevitApiPath>
+  </PropertyGroup>
+  <!-- =======================
+       Debug / Release
+       ======================= -->
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <OutputPath>bin\Debug\</OutputPath>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <OutputPath>bin\Release\</OutputPath>
+    <DebugSymbols>false</DebugSymbols>
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <DefineConstants>TRACE</DefineConstants>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <!-- =======================
+       References
+       ======================= -->
+  <ItemGroup>
+    <Reference Include="RevitAPI">
+      <HintPath>$(RevitApiPath)\RevitAPI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="RevitAPIUI">
+      <HintPath>$(RevitApiPath)\RevitAPIUI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xaml" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ValveFlangeCore\ValveFlangeCore.csproj" />
+  </ItemGroup>
+  <!-- =======================
+       Compile / XAML
+       ======================= -->
+  <ItemGroup>
+    <Compile Include="Commands\CmdValveFlangeMulti.cs" />
+    <Compile Include="Models\PmsRow.cs" />
+    <Compile Include="Services\PmsExcelLoader.cs" />
+    <Compile Include="Services\MatchService.cs" />
+    <Compile Include="Services\RelayCommand.cs" />
+    <Compile Include="Services\EnumToBooleanConverter.cs" />
+    <Compile Include="Settings\SettingsService.cs" />
+    <Compile Include="UI\ViewModels\MainViewModel.cs" />
+    <Compile Include="UI\ViewModels\ValveButtonItemViewModel.cs" />
+    <Compile Include="UI\Enums\UiState.cs" />
+    <Compile Include="UI\Enums\InsertMode.cs" />
+    <Compile Include="UI\ValveFlangeMultiWindow.xaml.cs" />
+    <!-- ✅ WPF Page는 Generator/SubType 지정 권장 -->
+    <Page Include="UI\ValveFlangeMultiWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="UI\CommonStyles.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <!-- ✅ WPF 라이브러리에서도 ApplicationDefinition을 하나 두면 디자이너 안정 -->
+    <!-- (없으면 아래 Item 제거해도 됨. 대신 아래 App.xaml 파일을 만들어야 함) -->
+    <!--
+    <ApplicationDefinition Include="App.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </ApplicationDefinition>
+    -->
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" />
+  </ItemGroup>
+  <!-- =======================
+       NuGet Packages
+       ======================= -->
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.102.3" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

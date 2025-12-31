@@ -1,0 +1,1 @@
+namespace ValveFlangeMulti.UI.Enums { public enum UiState { NoSettingLoaded, SettingLoaded, ValveSelected, Running, Success, Error } }
