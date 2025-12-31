@@ -11,19 +11,35 @@ namespace ValveFlangeMulti.Services
             if (value == null || parameter == null)
                 return false;
 
-            return string.Equals(
-                value.ToString(),
-                parameter.ToString(),
-                StringComparison.OrdinalIgnoreCase
-            );
+            try
+            {
+                return string.Equals(
+                    value.ToString(),
+                    parameter.ToString(),
+                    StringComparison.OrdinalIgnoreCase
+                );
+            }
+            catch
+            {
+                // 변환 실패 시 false 반환
+                return false;
+            }
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (parameter == null)
+            if (parameter == null || targetType == null)
                 return Binding.DoNothing;
 
-            return Enum.Parse(targetType, parameter.ToString());
+            try
+            {
+                return Enum.Parse(targetType, parameter.ToString());
+            }
+            catch
+            {
+                // 파싱 실패 시 변환 안함
+                return Binding.DoNothing;
+            }
         }
     }
 }
